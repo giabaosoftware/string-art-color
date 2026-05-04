@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thuật Toán Đan Dây CMYK+W (Pro)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f3f4f6; font-family: sans-serif; }
+        
+        #canvas-container { 
+            position: relative; width: 500px; height: 500px; margin: 0 auto; 
+            background: white; border-radius: 50%; box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+            overflow: hidden; cursor: grab;
+        }
+        #canvas-container:active { cursor: grabbing; }
+
+        canvas { position: absolute; top: 0; left: 0; border-radius: 50%; }
+        
+        /* 4 Màu CMYK dùng hòa trộn Trừ (Multiply) */
+        #layer-c, #layer-m, #layer-y, #layer-k { mix-blend-mode: multiply; pointer-events: none; }
+        
+        /* ĐỘC CHIÊU: Lớp Trắng dùng Normal để che phủ vật lý đè lên 4 lớp kia */
+        #layer-w { mix-blend-mode: normal; pointer-events: none; }
+        
+        #bg-canvas { pointer-events: none; transition: opacity 0.3s; }
+
+        .pin-list { font-family: monospace; font-size: 0.85rem; height: 120px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;}
+        input[type=range] { accent-color: #3b82f6; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+<div class="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    
+    <div class="lg:col-span-5 space-y-6">
+        <div>
+            <h1 class="text-3xl font-bold mb-1 text-gray-800">CMYK+W String Art <span class="text-sm bg-purple-100 text-purple-800 py-1 px-2 rounded">5 Màu</span></h1>
+            <p class="text-gray-600 text-sm">Nâng cấp thêm Sợi Trắng (White) để làm mịn da và lấy lại ánh sáng.</p>
+        </div>
+
+        <!-- 1. Tải ảnh -->
+        <div class="bg-gray-50 p-4 rounded-lg border">
+            <label class="block text-sm font-bold text-gray-700 mb-2">1. Chọn hình ảnh</label>
+            <input type="file" id="imageInput" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700">
+            <p class="text-xs text-gray-500 mt-2">💡 <b>Mẹo:</b> Kéo thả ảnh bên phải để di chuyển, lăn chuột để Zoom.</p>
+            <div class="flex gap-2 mt-2">
+                <button id="btnZoomIn" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm font-bold">+</button>
+                <button id="btnZoomOut" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm font-bold">-</button>
+                <button id="btnResetImg" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">Khôi phục vị trí</button>
+            </div>
+        </div>
+
+        <!-- 2. Chỉnh màu CMYK + W -->
+        <div class="bg-gray-50 p-4 rounded-lg border">
+            <label class="block text-sm font-bold text-gray-700 mb-3">2. Cân bằng 5 Màu (CMYK+W)</label>
+            
+            <div class="grid grid-cols-2 gap-4 mb-3 pb-3 border-b border-gray-200">
+                <div>
+                    <div class="flex justify-between"><label class="text-xs text-gray-700">Độ sáng (Bright)</label><span id="valBrightness" class="text-xs text-gray-500">1.1</span></div>
+                    <input type="range" id="adjBrightness" min="0.5" max="2" step="0.05" value="1.1" class="w-full">
+                </div>
+                <div>
+                    <div class="flex justify-between"><label class="text-xs text-gray-700">Độ tương phản</label><span id="valContrast" class="text-xs text-gray-500">1.1</span></div>
+                    <input type="range" id="adjContrast" min="0.5" max="2" step="0.05" value="1.1" class="w-full">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                    <div class="flex justify-between"><label class="text-xs text-cyan-600 font-bold">Cyan (C)</label><span id="valC" class="text-xs text-gray-500">0.8</span></div>
+                    <input type="range" id="weightC" min="0" max="2" step="0.1" value="0.8" class="w-full" style="accent-color: #00AEEF;">
+                </div>
+                <div>
+                    <div class="flex justify-between"><label class="text-xs text-pink-600 font-bold">Magenta (M)</label><span id="valM" class="text-xs text-gray-500">0.9</span></div>
+                    <input type="range" id="weightM" min="0" max="2" step="0.1" value="0.9" class="w-full" style="accent-color: #EC008C;">
+                </div>
+                <div>
+                    <div class="flex justify-between"><label class="text-xs text-yellow-500 font-bold">Yellow (Y)</label><span id="valY" class="text-xs text-gray-500">1.0</span></div>
+                    <input type="range" id="weightY" min="0" max="2" step="0.1" value="1.0" class="w-full" style="accent-color: #FBBF24;">
+                </div>
+                <div>
+                    <div class="flex justify-between"><label class="text-xs text-gray-800 font-bold">Black (K)</label><span id="valK" class="text-xs text-gray-500">0.8</span></div>
+                    <input type="range" id="weightK" min="0" max="2" step="0.1" value="0.8" class="w-full" style="accent-color: #000000;">
+                </div>
+                
+                <!-- BỔ SUNG SỢI TRẮNG -->
+                <div class="col-span-2 bg-gray-200 p-2 rounded">
+                    <div class="flex justify-between"><label class="text-xs text-gray-700 font-bold">White (W) - Phủ phấn & Sáng da</label><span id="valW" class="text-xs text-gray-700 font-bold">0.6</span></div>
+                    <input type="range" id="weightW" min="0" max="2" step="0.1" value="0.6" class="w-full" style="accent-color: #9ca3af;" title="Thêm chỉ trắng để che các vệt đen lộn xộn trên mặt, giúp da mịn màng.">
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Cài đặt Đinh & Dây -->
+        <div class="bg-gray-50 p-4 rounded-lg border">
+            <label class="block text-sm font-bold text-gray-700 mb-3">3. Thông số vật lý</label>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700">Số lượng đinh</label>
+                    <input type="number" id="numPins" value="256" class="mt-1 block w-full border border-gray-300 rounded px-2 py-1">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-purple-600">Tổng số bước đan (5 màu)</label>
+                    <input type="number" id="numSteps" value="8000" class="mt-1 block w-full border border-purple-300 bg-purple-50 rounded px-2 py-1">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700">Kích thước khung</label>
+                    <select id="canvasSize" class="mt-1 block w-full border border-gray-300 rounded px-2 py-1">
+                        <option value="40">40x40 cm</option>
+                        <option value="60" selected>60x60 cm</option>
+                        <option value="80">80x80 cm</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700">Độ dày chỉ (mm)</label>
+                    <input type="number" id="threadThickness" value="0.15" step="0.01" class="mt-1 block w-full border border-gray-300 rounded px-2 py-1">
+                </div>
+                
+                <!-- BỔ SUNG CHẾ ĐỘ SIÊU NÉT -->
+                <div class="col-span-2">
+                    <div class="flex items-center gap-2 mt-1 p-2 bg-purple-100 border border-purple-200 rounded">
+                        <input type="checkbox" id="hdMode" class="w-4 h-4 text-purple-600 rounded" checked>
+                        <label for="hdMode" class="text-sm font-bold text-purple-800">Bật thuật toán "Siêu Nét" (2 Chặng: Tự động bắt viền mắt, mũi, môi)</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cột giữa & Phải: Canvas và Quá trình -->
+    <div class="lg:col-span-7 flex flex-col items-center">
+        
+        <div class="w-full flex justify-between items-end mb-2">
+            <div id="status" class="font-bold text-purple-600">Chưa có ảnh...</div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="showBg" class="w-4 h-4 text-purple-600 rounded">
+                <label for="showBg" class="text-sm font-medium text-gray-700">Hiển thị ảnh gốc</label>
+            </div>
+        </div>
+
+        <div id="canvas-container" style="background-color: #f8f9fa;">
+            <canvas id="editor-canvas" width="500" height="500"></canvas>
+            <canvas id="bg-canvas" width="500" height="500" style="opacity: 0;"></canvas>
+            
+            <!-- Thứ tự Stack Z-index cực kỳ quan trọng cho mô phỏng vật lý -->
+            <canvas id="layer-k" width="500" height="500"></canvas> <!-- Đen tạo bóng -->
+            <canvas id="layer-c" width="500" height="500"></canvas> <!-- Xanh lơ -->
+            <canvas id="layer-m" width="500" height="500"></canvas> <!-- Hồng -->
+            <canvas id="layer-y" width="500" height="500"></canvas> <!-- Vàng -->
+            
+            <!-- Lớp TRẮNG (White) nằm trên cùng, Normal Blend để che phủ mọi lỗi lầm bên dưới -->
+            <canvas id="layer-w" width="500" height="500"></canvas> 
+        </div>
+
+        <div class="w-full flex gap-4 mt-6">
+            <button id="btnStart" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded shadow-lg transition duration-200">
+                BẮT ĐẦU ĐAN 5 MÀU
+            </button>
+            <button id="btnStop" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded shadow transition duration-200" disabled>
+                DỪNG
+            </button>
+            <button id="btnExport" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-6 rounded shadow transition duration-200" disabled>
+                XUẤT FILE TXT
+            </button>
+        </div>
+
+        <div class="w-full mt-4 border-t pt-4">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-bold text-gray-800">Thứ tự đan 5 màu (C, M, Y, K, <span class="text-gray-400">W</span>):</h3>
+                <div id="step-counter" class="text-sm font-bold text-purple-600">0 / 0</div>
+            </div>
+            <div id="out-combined" class="pin-list bg-gray-50 p-2 border border-gray-300 rounded shadow-inner text-gray-600"></div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+const SIZE = 500;
+const RADIUS = SIZE / 2;
+const CX = SIZE / 2;
+const CY = SIZE / 2;
+
+let isRunning = false;
+let animationId = null;
+
+let sourceImage = null;
+let imgScale = 1;
+let imgOffsetX = 0;
+let imgOffsetY = 0;
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+
+let globalSequence = []; // Lưu trữ mảng các bước đan để xuất file
+
+const editorCanvas = document.getElementById('editor-canvas');
+const editorCtx = editorCanvas.getContext('2d');
+const container = document.getElementById('canvas-container');
+
+// Liên kết UI Text
+function syncSliderText(id) {
+    document.getElementById(id).addEventListener('input', (e) => {
+        document.getElementById('val' + id.replace('adj','').replace('weight','')).innerText = e.target.value;
+        drawEditor();
+    });
+}
+['adjBrightness', 'adjContrast', 'weightC', 'weightM', 'weightY', 'weightK', 'weightW'].forEach(syncSliderText);
+
+document.getElementById('showBg').addEventListener('change', (e) => {
+    document.getElementById('bg-canvas').style.opacity = e.target.checked ? "0.2" : "0";
+});
+
+document.getElementById('imageInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            sourceImage = img;
+            const minDim = Math.min(img.width, img.height);
+            imgScale = SIZE / minDim;
+            imgOffsetX = SIZE/2 - (img.width * imgScale)/2;
+            imgOffsetY = SIZE/2 - (img.height * imgScale)/2;
+            drawEditor();
+            document.getElementById('status').innerText = "Ảnh đã tải. Chỉnh sửa và bấm Bắt đầu.";
+        }
+        img.src = event.target.result;
+    }
+    reader.readAsDataURL(file);
+});
+
+function drawEditor() {
+    if (!sourceImage) return;
+    document.getElementById('editor-canvas').style.opacity = '1';
+    editorCtx.clearRect(0, 0, SIZE, SIZE);
+    editorCtx.fillStyle = "white";
+    editorCtx.fillRect(0, 0, SIZE, SIZE);
+
+    const brightness = document.getElementById('adjBrightness').value;
+    const contrast = document.getElementById('adjContrast').value;
+    editorCtx.filter = `brightness(${brightness}) contrast(${contrast})`;
+
+    editorCtx.save();
+    editorCtx.beginPath();
+    editorCtx.arc(CX, CY, RADIUS, 0, Math.PI * 2);
+    editorCtx.clip();
+    editorCtx.drawImage(
+        sourceImage, 0, 0, sourceImage.width, sourceImage.height,
+        imgOffsetX, imgOffsetY, sourceImage.width * imgScale, sourceImage.height * imgScale
+    );
+    editorCtx.restore();
+    editorCtx.filter = 'none';
+}
+
+container.addEventListener('mousedown', (e) => {
+    if (!sourceImage || isRunning) return;
+    isDragging = true;
+    dragStartX = e.clientX - imgOffsetX;
+    dragStartY = e.clientY - imgOffsetY;
+});
+window.addEventListener('mouseup', () => isDragging = false);
+window.addEventListener('mousemove', (e) => {
+    if (isDragging && !isRunning) {
+        imgOffsetX = e.clientX - dragStartX;
+        imgOffsetY = e.clientY - dragStartY;
+        drawEditor();
+    }
+});
+container.addEventListener('wheel', (e) => {
+    if (!sourceImage || isRunning) return;
+    e.preventDefault();
+    const zoomIntensity = 0.1;
+    const rect = container.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const wheel = e.deltaY < 0 ? 1 : -1;
+    const zoom = Math.exp(wheel * zoomIntensity);
+    imgOffsetX -= (mouseX - imgOffsetX) * (zoom - 1);
+    imgOffsetY -= (mouseY - imgOffsetY) * (zoom - 1);
+    imgScale *= zoom;
+    drawEditor();
+});
+document.getElementById('btnZoomIn').addEventListener('click', () => { imgScale *= 1.1; drawEditor(); });
+document.getElementById('btnZoomOut').addEventListener('click', () => { imgScale *= 0.9; drawEditor(); });
+document.getElementById('btnResetImg').addEventListener('click', () => {
+    if(!sourceImage) return;
+    const minDim = Math.min(sourceImage.width, sourceImage.height);
+    imgScale = SIZE / minDim;
+    imgOffsetX = SIZE/2 - (sourceImage.width * imgScale)/2;
+    imgOffsetY = SIZE/2 - (sourceImage.height * imgScale)/2;
+    drawEditor();
+});
+
+// --- CORE: 5 COLORS ---
+const COLORS = [
+    { id: 'c', name: 'Cyan', rgb: '0, 174, 239' },
+    { id: 'm', name: 'Magenta', rgb: '236, 0, 140' },
+    { id: 'y', name: 'Yellow', rgb: '255, 242, 0' },
+    { id: 'k', name: 'Black', rgb: '0, 0, 0' },
+    { id: 'w', name: 'White', rgb: '255, 255, 255' } // Sợi chỉ Trắng (Opaque)
+];
+
+// Thuật toán Sobel Edge Detection (Tìm viền ảnh để kích hoạt Siêu nét)
+function computeEdgeMap(imgData, SIZE) {
+    const edgeMap = new Float32Array(SIZE * SIZE);
+    const grayscale = new Float32Array(SIZE * SIZE);
+    for(let i=0; i<SIZE*SIZE; i++) {
+        let r = imgData[i*4]/255, g = imgData[i*4+1]/255, b = imgData[i*4+2]/255;
+        grayscale[i] = 0.299*r + 0.587*g + 0.114*b;
+    }
+    let maxEdge = 0;
+    for(let y=1; y<SIZE-1; y++) {
+        for(let x=1; x<SIZE-1; x++) {
+            let idx = y*SIZE + x;
+            // Ma trận Sobel 3x3
+            let gx = -grayscale[idx-SIZE-1] + grayscale[idx-SIZE+1]
+                     -2*grayscale[idx-1] + 2*grayscale[idx+1]
+                     -grayscale[idx+SIZE-1] + grayscale[idx+SIZE+1];
+            let gy = -grayscale[idx-SIZE-1] - 2*grayscale[idx-SIZE] - grayscale[idx-SIZE+1]
+                     +grayscale[idx+SIZE-1] + 2*grayscale[idx+SIZE] + grayscale[idx+SIZE+1];
+            let mag = Math.sqrt(gx*gx + gy*gy);
+            edgeMap[idx] = mag;
+            if(mag > maxEdge) maxEdge = mag;
+        }
+    }
+    // Chuẩn hóa về 0 -> 1
+    for(let i=0; i<SIZE*SIZE; i++) {
+        edgeMap[i] = Math.min(1, edgeMap[i] / (maxEdge || 1));
+    }
+    return edgeMap;
+}
+
+function getPins(numPins) {
+    const pins = [];
+    for (let i = 0; i < numPins; i++) {
+        const angle = i * Math.PI * 2 / numPins;
+        pins.push({
+            x: Math.round(CX + (RADIUS-2) * Math.cos(angle)),
+            y: Math.round(CY + (RADIUS-2) * Math.sin(angle))
+        });
+    }
+    return pins;
+}
+
+function getLinePixels(x0, y0, x1, y1) {
+    const pixels = [];
+    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    let sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
+    let err = dx - dy;
+    while(true) {
+        pixels.push({x: x0, y: y0});
+        if ((x0 === x1) && (y0 === y1)) break;
+        let e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+    }
+    return pixels;
+}
+
+document.getElementById('btnStart').addEventListener('click', async () => {
+    if (!sourceImage) { alert("Vui lòng tải ảnh!"); return; }
+    
+    isRunning = true;
+    document.getElementById('btnStart').disabled = true;
+    document.getElementById('btnStop').disabled = false;
+    document.getElementById('editor-canvas').style.opacity = '0';
+    
+    const bgCtx = document.getElementById('bg-canvas').getContext('2d');
+    bgCtx.clearRect(0,0,SIZE,SIZE);
+    bgCtx.drawImage(editorCanvas, 0, 0);
+
+    const numPins = parseInt(document.getElementById('numPins').value);
+    const numSteps = parseInt(document.getElementById('numSteps').value);
+    const canvasCm = parseFloat(document.getElementById('canvasSize').value);
+    const threadMm = parseFloat(document.getElementById('threadThickness').value);
+    
+    const wC = parseFloat(document.getElementById('weightC').value);
+    const wM = parseFloat(document.getElementById('weightM').value);
+    const wY = parseFloat(document.getElementById('weightY').value);
+    const wK = parseFloat(document.getElementById('weightK').value); 
+    const wW = parseFloat(document.getElementById('weightW').value); 
+    
+    const basePenalty = (threadMm * SIZE) / (canvasCm * 10);
+    
+    COLORS.forEach(c => {
+        const ctx = document.getElementById(`layer-${c.id}`).getContext('2d');
+        ctx.clearRect(0, 0, SIZE, SIZE);
+    });
+    document.getElementById('out-combined').innerText = "";
+
+    const imgData = bgCtx.getImageData(0, 0, SIZE, SIZE).data;
+    
+    // Tạo Bản đồ Viền (Edge Map) nếu bật chế độ HD
+    const hdMode = document.getElementById('hdMode').checked;
+    const edgeMap = hdMode ? computeEdgeMap(imgData, SIZE) : null;
+    
+    // Ma trận cho 5 màu
+    const targetData = {
+        c: new Float32Array(SIZE * SIZE), m: new Float32Array(SIZE * SIZE),
+        y: new Float32Array(SIZE * SIZE), k: new Float32Array(SIZE * SIZE),
+        w: new Float32Array(SIZE * SIZE)
+    };
+
+    for (let i = 0; i < imgData.length; i += 4) {
+        const r = imgData[i], g = imgData[i+1], b = imgData[i+2], a = imgData[i+3];
+        if (a === 0) continue;
+
+        // 1. Tính CMYK 
+        let c_raw = 1 - (r / 255);
+        let m_raw = 1 - (g / 255);
+        let y_raw = 1 - (b / 255);
+        let k_raw = Math.min(c_raw, Math.min(m_raw, y_raw));
+
+        let c = (k_raw === 1) ? 0 : (c_raw - k_raw) / (1 - k_raw);
+        let m = (k_raw === 1) ? 0 : (m_raw - k_raw) / (1 - k_raw);
+        let y = (k_raw === 1) ? 0 : (y_raw - k_raw) / (1 - k_raw);
+        let k = k_raw;
+
+        // 2. Tính Lượng Trắng (White) cần thiết dựa trên độ Sáng (Brightness)
+        let w_raw = (r / 255 + g / 255 + b / 255) / 3;
+
+        const idx = i / 4;
+        targetData.c[idx] = Math.min(1, c * wC);
+        targetData.m[idx] = Math.min(1, m * wM); 
+        targetData.y[idx] = Math.min(1, y * wY);
+        targetData.k[idx] = Math.min(1, k * wK); 
+        targetData.w[idx] = Math.min(1, w_raw * wW); // Trọng số của phấn trắng
+    }
+
+    const pins = getPins(numPins);
+    document.getElementById('status').innerText = "Đang phân tích 5 luồng chỉ...";
+    
+    const lineCache = new Map();
+    function getCachedLine(p1, p2) {
+        const id = p1 < p2 ? `${p1}-${p2}` : `${p2}-${p1}`;
+        if (!lineCache.has(id)) {
+            lineCache.set(id, getLinePixels(pins[p1].x, pins[p1].y, pins[p2].x, pins[p2].y));
+        }
+        return lineCache.get(id);
+    }
+
+    try {
+        document.getElementById('btnExport').disabled = true; // Khóa nút xuất file khi đang chạy
+        
+        const ctxs = {};
+        COLORS.forEach(c => {
+            ctxs[c.id] = document.getElementById(`layer-${c.id}`).getContext('2d');
+            
+            // Tinh chỉnh hiển thị: Sợi trắng cần vẽ đậm hơn trên màn hình để dễ nhìn thấy hiệu ứng "phủ phấn"
+            let visMult = 1.0;
+            if (c.id === 'y') visMult = 2.0; 
+            if (c.id === 'k') visMult = 0.6; 
+            if (c.id === 'w') visMult = 1.8; // Trắng phản quang mạnh
+            
+            let visualAlpha = Math.max(0.05, Math.min(0.8, basePenalty * visMult));
+            ctxs[c.id].strokeStyle = `rgba(${c.rgb}, ${visualAlpha})`;
+            ctxs[c.id].lineWidth = 1;
+        });
+
+        // 5 Cần gạt chỉ
+        let currentPins = { c: 0, m: 0, y: 0, k: 0, w: 0 };
+        globalSequence = ["(0,0,0,0,0)"];
+        let sequence = globalSequence;
+        let textDiv = document.getElementById('out-combined');
+        let counterDiv = document.getElementById('step-counter');
+        textDiv.innerText = sequence[0];
+
+        function findBestPin(currentPin, channelData, isDetailPhase) {
+            let bestPin = -1, maxScore = -1, bestLine = null;
+            for (let p = 0; p < numPins; p++) {
+                if (p === currentPin || Math.abs(p - currentPin) < 10 || Math.abs(p - currentPin) > numPins - 10) continue;
+                const line = getCachedLine(currentPin, p);
+                let score = 0;
+                let edgeBonus = 0;
+                
+                for (let i = 0; i < line.length; i++) {
+                    const idx = line[i].y * SIZE + line[i].x;
+                    score += channelData[idx];
+                    
+                    // Nếu đang ở Chặng 2 (Đi nét), thưởng thêm điểm nếu đường thẳng đi qua Viền
+                    if (isDetailPhase && edgeMap) {
+                        edgeBonus += edgeMap[idx] * channelData[idx]; 
+                    }
+                }
+                score = score / line.length;
+                
+                // Kích hoạt sức mạnh hút viền (Nhân x5 lực hút)
+                if (isDetailPhase && edgeMap) {
+                    score += (edgeBonus / line.length) * 5.0; 
+                }
+                
+                if (score > maxScore) { maxScore = score; bestPin = p; bestLine = line; }
+            }
+            return { bestPin, bestLine, maxScore };
+        }
+
+        await new Promise(resolve => {
+            let stepsDrawn = 0;
+            function step() {
+                if (!isRunning) { resolve(); return; }
+                
+                for (let kStep = 0; kStep < 15; kStep++) {
+                    if (stepsDrawn >= numSteps) { resolve(); return; }
+
+                    // Kích hoạt Chặng 2 (Detail Phase) khi đã đan được 75% khối lượng
+                    const isDetailPhase = hdMode && (stepsDrawn > numSteps * 0.75);
+
+                    // Đánh giá 5 luồng chỉ cạnh tranh nhau, truyền thêm isDetailPhase
+                    const rC = findBestPin(currentPins.c, targetData.c, isDetailPhase);
+                    const rM = findBestPin(currentPins.m, targetData.m, isDetailPhase);
+                    const rY = findBestPin(currentPins.y, targetData.y, isDetailPhase);
+                    const rK = findBestPin(currentPins.k, targetData.k, isDetailPhase);
+                    const rW = findBestPin(currentPins.w, targetData.w, isDetailPhase);
+
+                    const candidates = [
+                        { id: 'c', res: rC, score: rC.maxScore },
+                        { id: 'm', res: rM, score: rM.maxScore },
+                        { id: 'y', res: rY, score: rY.maxScore },
+                        { id: 'k', res: rK, score: rK.maxScore },
+                        { id: 'w', res: rW, score: rW.maxScore } // Mới
+                    ];
+                    
+                    candidates.sort((a, b) => b.score - a.score);
+                    const best = candidates[0];
+
+                    if (best.score <= 0.001) { resolve(); return; }
+
+                    const cId = best.id;
+                    const res = best.res;
+
+                    const ctx = ctxs[cId];
+                    ctx.beginPath();
+                    ctx.moveTo(pins[currentPins[cId]].x, pins[currentPins[cId]].y);
+                    ctx.lineTo(pins[res.bestPin].x, pins[res.bestPin].y);
+                    ctx.stroke();
+
+                    for (let i = 0; i < res.bestLine.length; i++) {
+                        const idx = res.bestLine[i].y * SIZE + res.bestLine[i].x;
+                        targetData[cId][idx] = Math.max(0, targetData[cId][idx] - basePenalty);
+                    }
+
+                    currentPins[cId] = res.bestPin;
+                    stepsDrawn++;
+                    
+                    // Cập nhật log 5 thông số
+                    sequence.push(`(${currentPins.c},${currentPins.m},${currentPins.y},${currentPins.k},${currentPins.w})`);
+                    
+                    if (stepsDrawn % 40 === 0) {
+                        textDiv.innerText = sequence.join(" ");
+                        textDiv.scrollTop = textDiv.scrollHeight;
+                        
+                        // Cập nhật UI hiển thị đang ở Chặng nào
+                        const phaseText = isDetailPhase ? "(Chặng 2: Đi nét viền)" : "(Chặng 1: Phủ màu)";
+                        counterDiv.innerText = hdMode ? `${stepsDrawn} / ${numSteps} ${phaseText}` : `${stepsDrawn} / ${numSteps}`;
+                    }
+                }
+                animationId = requestAnimationFrame(step);
+            }
+            animationId = requestAnimationFrame(step);
+        });
+
+        document.getElementById('status').innerText = "Đã hoàn thành!";
+    } catch (err) {
+        console.error(err);
+    } finally {
+        isRunning = false;
+        document.getElementById('btnStart').disabled = false;
+        document.getElementById('btnStop').disabled = true;
+        document.getElementById('btnExport').disabled = false; // Mở khóa nút xuất file
+    }
+});
+
+document.getElementById('btnStop').addEventListener('click', () => {
+    isRunning = false;
+    if (animationId) cancelAnimationFrame(animationId);
+    document.getElementById('status').innerText = "Đã dừng thuật toán.";
+    document.getElementById('btnStart').disabled = false;
+    document.getElementById('btnStop').disabled = true;
+    document.getElementById('btnExport').disabled = false; // Mở khóa nút xuất file
+});
+
+// Chức năng xuất file .txt
+document.getElementById('btnExport').addEventListener('click', () => {
+    if (!globalSequence || globalSequence.length <= 1) {
+        alert("Chưa có dữ liệu bước đan để xuất!");
+        return;
+    }
+
+    let textContent = "HUONG DAN DAN DAY STRING ART 5 MAU\n";
+    textContent += "Mau sac theo thu tu: Cyan (Xanh lo), Magenta (Hong sam), Yellow (Vang), Black (Den), White (Trang)\n";
+    textContent += "-------------------------------------------------------------------------------------------\n\n";
+
+    // Lặp qua mảng log để format lại theo dạng: bước 1: 0, 0, 122, 255, 10
+    for (let i = 1; i < globalSequence.length; i++) {
+        let pins = globalSequence[i].replace(/[()]/g, '').split(',');
+        textContent += `bước ${i}: ${pins.join(', ')}\n`;
+    }
+
+    // Tạo file text và tải về trình duyệt
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'huong_dan_dan_day_cmykw.txt';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+});
+
+</script>
+</body>
+</html>
